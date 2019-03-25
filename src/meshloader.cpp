@@ -41,6 +41,8 @@ bool MeshLoader::load(const std::string &filename, const string &group) {
 		return loadPly(filename);
 	if(endsWith(filename, ".obj") || endsWith(filename, ".OBJ"))
 		return loadObj(filename, group);
+	if(endsWith(filename, ".bin") || endsWith(filename, ".BIN"))
+		return loadKitti(filename);
 	return false;
 }
 
@@ -189,6 +191,37 @@ bool MeshLoader::loadObj(const std::string &filename, const std::string &groupna
 		assert(index[i] < nvert);
 
 	return nvert > 0;
+}
+
+bool MeshLoader::loadKitti(const std::string &filename) {
+	std::ifstream file(filename, std::ios::binary);
+	if (!file.is_open())
+		return false;
+	// Read the whole file into a buffer.
+	auto pos0 = file.tellg();
+	file.seekg(0, std::ios::end);
+	auto file_size = file.tellg() - pos0;
+	if (file_size == 0)
+		return false;
+	file.seekg(0, std::ios::beg);
+	std::vector<float> data(file_size);
+	file.read(reinterpret_cast<char *>(&data[0]), file_size);
+
+	int num_positions_ = file_size / (sizeof(float) * 4);
+
+	coords.resize(num_positions_ * 3);
+
+	for (int i = 0; i < num_positions_; i++) {
+		// Parse three float numbers for vertex position coordinates
+		// and an extra float for the intensity attribute.
+		float val[4];
+		memcpy(val, data.data() + i * 4, sizeof(float) * 4);
+		memcpy(&coords[i * 3], val, sizeof(float) * 3);
+	}
+
+	nvert = coords.size() / 3;
+
+	return true;
 }
 
 void MeshLoader::splitWedges() {
